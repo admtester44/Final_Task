@@ -1,3 +1,3 @@
 ## Here is my streamlit project for final test
 
-[you can reach application here.] (https://finaltask-ysxndghiyejzy7cpe4pfb2.streamlit.app/)
+[you can reach the application here.](https://finaltask-ysxndghiyejzy7cpe4pfb2.streamlit.app/)
