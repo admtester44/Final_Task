@@ -199,7 +199,7 @@ def main():
             st.image(img, caption='Original Image', use_column_width=True)
             # enhancement_factor = st.slider('Enhancement Factor', 0.0, 2.0, 1.0)
 
-            if st.button('Enhance'):
+            if st.button('Object Detection'):
                 module_handle = "https://tfhub.dev/google/faster_rcnn/openimages_v4/inception_resnet_v2/1" #@param ["https://tfhub.dev/google/openimages_v4/ssd/mobilenet_v2/1", "https://tfhub.dev/google/faster_rcnn/openimages_v4/inception_resnet_v2/1"]
                 detector = hub.load(module_handle).signatures['default']
 
