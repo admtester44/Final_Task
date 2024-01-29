@@ -4,11 +4,11 @@ import subprocess
 #subprocess.check_call(["pip", "install", "numpy", "scipy", "matplotlib", "pillow"])
 
 # Install TensorFlow and TensorFlow Hub
-subprocess.check_call(["pip", "show", "tensorflow"])
-subprocess.check_call(["pip", "install", "tensorflow_hub"])
+#subprocess.check_call(["pip", "show", "tensorflow"])
+#subprocess.check_call(["pip", "install", "tensorflow_hub"])
 
 # Install TextBlob
-subprocess.check_call(["pip", "install", "textblob"])
+#subprocess.check_call(["pip", "install", "textblob"])
 
 import streamlit as st
 import requests as req
