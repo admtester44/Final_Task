@@ -1,3 +1,8 @@
+import subprocess
+
+# Install numpy and scipy using pip
+subprocess.check_call(["pip", "install", "numpy", "scipy", "matplotlib", "tensorflow", "tensorflow_hub", "time", "textblob", "pillow"])
+
 import streamlit as st
 import requests as req
 import io
