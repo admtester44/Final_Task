@@ -1,6 +1,7 @@
-import subprocess
+# import subprocess
 # Install TextBlob
-subprocess.check_call(["pip", "install", "textblob"])
+# subprocess.check_call(["pip", "install", "textblob"])
+!pip install textblob
 
 import streamlit as st
 import requests as req
