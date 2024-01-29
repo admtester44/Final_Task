@@ -4,7 +4,7 @@ import subprocess
 #subprocess.check_call(["pip", "install", "numpy", "scipy", "matplotlib", "pillow"])
 
 # Install TensorFlow and TensorFlow Hub
-#subprocess.check_call(["pip", "install", "tensorflow"])
+subprocess.check_call(["pip", "install", "tensorflow"])
 #subprocess.check_call(["pip", "install", "tensorflow_hub"])
 
 # Install TextBlob
