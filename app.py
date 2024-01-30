@@ -79,7 +79,6 @@ def main():
     with object_detection_button:
         st.header("Object Detection Image")
         st.write('Upload an image and Detect object from the image')
-        st.write('Note: This model only take some object some result may be not really accurate')
 
         uploaded_image = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"], key="enhance_object")
 
