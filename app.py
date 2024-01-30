@@ -4,9 +4,11 @@ import io
 import tensorflow as tf
 import tensorflow_hub as hub
 import time
+import cv2
 import numpy as np
+import matplotlib.pyplot as plt 
 from textblob import TextBlob
-from PIL import Image, ImageEnhance, ImageOps, ImageDraw
+from PIL import Image, ImageEnhance, ImageOps, ImageDraw, ImageColor, ImageFont
 
 
 def enhance_image(image, enhancement_factor):
@@ -53,100 +55,69 @@ def load_img(path):
   img = ImageOps.fit(img, (500, 280), Image.LANCZOS)
   return img
 
-def object_detection():
-    # Isi dengan fungsionalitas image object detection
-    st.write("Image Object Detection tab content.")
+def object_detection(image_path):
+  config_file= 'models/ssd_mobilenet_v3_large_coco_2020_01_14.pbtxt'
+  frozen_model='models/frozen_inference_graph.pb'
+  model = cv2.dnn_DetectionModel(frozen_model, config_file)
 
-def draw_bounding_box_on_image(image,
-                               ymin,
-                               xmin,
-                               ymax,
-                               xmax,
-                               color,
-                               font,
-                               thickness=4,
-                               display_str_list=()):
-  """Adds a bounding box to an image."""
-  draw = ImageDraw.Draw(image)
-  im_width, im_height = image.size
-  (left, right, top, bottom) = (xmin * im_width, xmax * im_width,
-                                ymin * im_height, ymax * im_height)
-  draw.line([(left, top), (left, bottom), (right, bottom), (right, top),
-             (left, top)],
-            width=thickness,
-            fill=color)
+  classLabels = []
+  file_names='models/labels.txt'
+  with open(file_names, 'rt') as fpt:
+      classLabels = fpt.read().rstrip('\n').split('\n')
+  model.setInputSize(320,320)
+  model.setInputScale(1.0/127.5)
+  model.setInputMean((127.5,127,5,127.5))
+  model.setInputSwapRB(True)
+  # img=np.array(image_path)
+  # img = cv2.imread(img)
+  # Convert the PIL Image to NumPy array
+  img_np = np.array(image_path)
 
-  # If the total height of the display strings added to the top of the bounding
-  # box exceeds the top of the image, stack the strings below the bounding box
-  # instead of above.
-  display_str_heights = [font.getsize(ds)[1] for ds in display_str_list]
-  # Each display_str has a top and bottom margin of 0.05x.
-  total_display_str_height = (1 + 2 * 0.05) * sum(display_str_heights)
-
-  if top > total_display_str_height:
-    text_bottom = top
+  # Ensure that the image is in BGR format (OpenCV format)
+  if img_np.shape[-1] == 4:
+      img_np = cv2.cvtColor(img_np, cv2.COLOR_RGBA2BGR)
   else:
-    text_bottom = top + total_display_str_height
-  # Reverse list and print from bottom to top.
-  for display_str in display_str_list[::-1]:
-    text_width, text_height = font.getsize(display_str)
-    margin = np.ceil(0.05 * text_height)
-    draw.rectangle([(left, text_bottom - text_height - 2 * margin),
-                    (left + text_width, text_bottom)],
-                   fill=color)
-    draw.text((left + margin, text_bottom - text_height - margin),
-              display_str,
-              fill="black",
-              font=font)
-    text_bottom -= text_height - 2 * margin
+      img_np = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
 
-def draw_boxes(image, boxes, class_names, scores, max_boxes=10, min_score=0.1):
-  """Overlay labeled boxes on an image with formatted scores and label names."""
-  colors = list(ImageColor.colormap.values())
+  ClassIndex, confidece, bbox= model.detect(img_np,confThreshold=0.5)
+  font_scale=3
+  font= cv2.FONT_HERSHEY_PLAIN
+  for ClassInd, conf, boxes in zip(ClassIndex.flatten(), confidece.flatten(), bbox):
+      cv2.rectangle(img_np, boxes, (255,0,0), 2)
+      cv2.putText(img_np, classLabels[ClassInd-1], (boxes[0]+10, boxes[1]+40), font, fontScale=font_scale, color=(0,255,0), thickness=3)
+  return cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB)
 
-  try:
-    font = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSansNarrow-Regular.ttf",
-                              25)
-  except IOError:
-    print("Font not found, using default font.")
-    font = ImageFont.load_default()
+def multiscale_retinex(image_path, sigma_list=[100, 200, 300]):
 
-  for i in range(min(boxes.shape[0], max_boxes)):
-    if scores[i] >= min_score:
-      ymin, xmin, ymax, xmax = tuple(boxes[i])
-      display_str = "{}: {}%".format(class_names[i].decode("ascii"),
-                                     int(100 * scores[i]))
-      color = colors[hash(class_names[i]) % len(colors)]
-      image_pil = Image.fromarray(np.uint8(image)).convert("RGB")
-      draw_bounding_box_on_image(
-          image_pil,
-          ymin,
-          xmin,
-          ymax,
-          xmax,
-          color,
-          font,
-          display_str_list=[display_str])
-      np.copyto(image, np.array(image_pil))
-  return image
+    image = np.array(image_path) 
+    retinex_image = np.zeros_like(image, dtype=np.float32)
 
-def run_detector(detector, img):
-  img_array = np.array(img)
-  converted_img = tf.image.convert_image_dtype(img_array, tf.float32)[tf.newaxis, ...]
-  start_time = time.time()
-  result = detector(converted_img)
-  end_time = time.time()
+    for sigma in sigma_list:
+        log_image = np.log1p(image.astype(np.float32))
+        gaussian = cv2.GaussianBlur(log_image, (0, 0), sigma)
+        retinex_image += log_image - gaussian
 
-  result = {key: value.numpy() for key, value in result.items()}
+    retinex_image /= len(sigma_list)
+    retinex_image = np.exp(retinex_image) - 1.0
 
-  print("Found %d objects." % len(result["detection_scores"]))
-  print("Inference time: ", end_time - start_time)
+    # Normalisasi gambar
+    retinex_image_normalized = (retinex_image - np.min(retinex_image)) / (np.max(retinex_image) - np.min(retinex_image)) * 255
+    retinex_image_normalized = retinex_image_normalized.astype(np.uint8)
 
-  image_with_boxes = draw_boxes(
-    img_array, result["detection_boxes"],
-    result["detection_class_entities"], result["detection_scores"])
+    enhance_image = cv2.cvtColor(retinex_image_normalized, cv2.COLOR_BGR2RGB)
+    return enhance_image
 
-  return image_with_boxes
+def manipulate_image(input_path):
+    # image = Image.open(input_path)
+      # Convert the image to grayscale
+    gray_image = input_path.convert("L")
+    # Lakukan manipulasi lainnya, seperti enhancement MSRCR
+    # Misalnya, menggunakan ImageEnhance untuk meningkatkan kecerahan
+    enhancer = ImageEnhance.Brightness(gray_image)
+    enhanced_image = enhancer.enhance(2.0)  # Contoh: meningkatkan kecerahan sebesar 2 kali
+    # Lakukan manipulasi lainnya, seperti enhancement MSRCR
+    return enhanced_image
+
 
 def main():
     st.title('Python Processing Playground')
@@ -157,7 +128,7 @@ def main():
     # # selected_tab = st.sidebar.selectbox("Select Tab", tabs)
     # selected_tab = st.sidebar.radio("Select Tab", tabs)
     container = st.container(border=True)
-    enhance_button, sentiment_button, object_detection_button = container.tabs(["Enhance Image", "Sentiment Analysis", "Image Object Detection"])
+    enhance_button, multi_retinex_button,sentiment_button, object_detection_button = container.tabs(["Enhance Image","Multi RetinexScale Image", "Sentiment Analysis", "Image Object Detection"])
 
     with enhance_button :
     # Tab Enhance Image
@@ -180,17 +151,41 @@ def main():
     # Tab Sentiment Analysis
         st.header("Sentiment Analysis")
         news_url = "https://newsapi.org/v2/top-headlines?country=id&category=technology&apiKey=e1c7f6efec974dddb22076143d05bfe8";
-        response = req.get(news_url)
-        if response != False :
-            response = response.json()
+        try :
+          response = req.get(news_url)
+          response = response.json()
+          if response['status'] != "error" :
             sentiment_analysis(response)
-        else :
-            print("cannot get API")
+          else :
+            st.write("cannot get API")
+        except req.exceptions.RequestException as e:
+            # Handle any exception that occurred during the request
+            print(f"Error during request: {e}")
+
+    with multi_retinex_button:
+       st.header("Multi RetinexScale Image")
+       st.write('Upload an image and see the enhancement image using gaussian blur')
+
+       uploaded_image = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"], key="gaussian_blur")
+
+       if uploaded_image is not None:
+        st.image(uploaded_image, caption='Original Image', use_column_width=True)
+
+        if st.button("MultiRetinex Scale") :
+          input_image = Image.open(uploaded_image)
+          grey_scale = manipulate_image(input_image)
+          # grey_scale_display = Image.open(io.BytesIO(grey_scale))
+
+          multi_scale_retinex = multiscale_retinex(input_image)
+          # multi_scale_retinex_display = Image.Open(io.BytesIO(multi_scale_retinex))
+
+          st.image([grey_scale,multi_scale_retinex], caption=["grey Scale Image","Multi Retinex Scale Image"], use_column_width=True)
 
     # Tab Image Object Detection
     with object_detection_button:
         st.header("Object Detection Image")
         st.write('Upload an image and Detect object from the image')
+        st.write('Note: This model only take some object some result may be not really accurate')
 
         uploaded_image = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"], key="enhance_object")
 
@@ -200,16 +195,14 @@ def main():
             # enhancement_factor = st.slider('Enhancement Factor', 0.0, 2.0, 1.0)
 
             if st.button('Object Detection'):
-                module_handle = "https://tfhub.dev/google/faster_rcnn/openimages_v4/inception_resnet_v2/1" #@param ["https://tfhub.dev/google/openimages_v4/ssd/mobilenet_v2/1", "https://tfhub.dev/google/faster_rcnn/openimages_v4/inception_resnet_v2/1"]
-                detector = hub.load(module_handle).signatures['default']
-
-                result_image = run_detector(detector, img)
-                buffered = io.BytesIO()
+                input_image = Image.open(uploaded_image)
+                result_image= object_detection(input_image)
+                # buffered = io.BytesIO()
                 result_image_pil = Image.fromarray(result_image)
-                result_image_pil.save(buffered, format="JPEG")
+                # result_image_pil.save(buffered, format="JPEG")
                 # image = Image.open(uploaded_image)
                 # enhanced_image = enhance_image(image, enhancement_factor)
                 st.image(result_image_pil, caption='Object Detection', use_column_width=True)
-
+    
 if __name__ == "__main__":
     main()
